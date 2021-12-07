@@ -1,0 +1,30 @@
+{
+  "name": "art-marketplace-common",
+  "version": "1.0.1",
+  "description": "Common modules for the art marketplace project",
+  "main": "src/index.js",
+  "type": "module",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/0aps/art-marketplace-common.git"
+  },
+  "keywords": [
+    "art-markertplace"
+  ],
+  "author": "0aps",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/0aps/art-marketplace-common/issues"
+  },
+  "homepage": "https://github.com/0aps/art-marketplace-common#readme",
+  "dependencies": {
+    "body-parser": "^1.19.0",
+    "dotenv": "^10.0.0",
+    "express": "^4.17.1",
+    "http-status-codes": "^2.1.4",
+    "mongoose": "^6.0.15"
+  }
+}
