@@ -1,4 +1,5 @@
 import express, {Router} from 'express';
+import morgan from 'morgan';
 import mongoose from 'mongoose';
 import bodyParser from 'body-parser';
 import {StatusCodes} from 'http-status-codes';
@@ -59,21 +60,30 @@ class App {
 class RouteManager {
     constructor(server) {
         this.server = server;
+        this.base = '/api';
+        this.version = 'v1';
+        this.url = this.getBaseRoute();
     }
 
     load(views) {
         let self = this;
+        this.server.use(morgan('combined'));
         this.server.use(bodyParser.urlencoded({extended: false}));
         this.server.use(bodyParser.json());
 
         views.forEach((view) => {
             if ('url' in view) {
-                this.server.use(view['url'], self._loadParentView(view));
+                let url = self.getBaseRoute(view['version']);
+                this.server.use(`${url}${view['url']}`, self._loadParentView(view));
             }
         });
         this.server.use((req, res) => {
             res.sendStatus(StatusCodes.NOT_FOUND);
         });
+    }
+
+    getBaseRoute(version) {
+        return `${this.base}/${version ?? this.version}`;
     }
 
     _loadParentView(view) {
