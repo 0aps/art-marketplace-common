@@ -77,6 +77,13 @@ class RouteManager {
                 this.server.use(`${url}${view['url']}`, self._loadParentView(view));
             }
         });
+        this.server.use((err, req, res, next) => {
+            if(err.code){
+                res.status(err.code).json(err.toClient());
+            }else{
+                res.status(StatusCodes.INTERNAL_SERVER_ERROR).json(err);
+            }
+        });
         this.server.use((req, res) => {
             res.sendStatus(StatusCodes.NOT_FOUND);
         });
