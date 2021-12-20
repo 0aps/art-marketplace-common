@@ -3,6 +3,8 @@ import morgan from 'morgan';
 import mongoose from 'mongoose';
 import bodyParser from 'body-parser';
 import {StatusCodes} from 'http-status-codes';
+import {Auth} from './authorization.js';
+import {InvalidToken, ExpiredToken, UserForbidden} from './exceptions.js';
 
 class App {
     constructor({server, env, logger, router, storage}) {
@@ -67,6 +69,7 @@ class RouteManager {
 
     load(views) {
         let self = this;
+        this.server.locals.apiRoute = this.url;
         this.server.use(morgan('combined'));
         this.server.use(bodyParser.urlencoded({extended: false}));
         this.server.use(bodyParser.json());
@@ -78,10 +81,10 @@ class RouteManager {
             }
         });
         this.server.use((err, req, res, next) => {
-            if(err.code){
+            if (err.code) {
                 res.status(err.code).json(err.toClient());
-            }else{
-                res.status(StatusCodes.INTERNAL_SERVER_ERROR).json(err);
+            } else {
+                res.status(StatusCodes.INTERNAL_SERVER_ERROR).json(err.message);
             }
         });
         this.server.use((req, res) => {
@@ -91,6 +94,39 @@ class RouteManager {
 
     getBaseRoute(version) {
         return `${this.base}/${version ?? this.version}`;
+    }
+
+    getAuthMiddleware({access, roles}) {
+        return async (req, res, next) => {
+            const method = req.method.toLowerCase();
+            if (access === 'public' || typeof access === 'object' && method in access && access[method] === 'public') {
+                return next();
+            } else {
+                let token = req.session && req.session.token;
+                if (!token && req.headers.authorization) {
+                    token = req.headers.authorization.substring(7);
+                }
+                try {
+                    const valid = await Auth.verify(token);
+                    if (roles) {
+                        return ((Array.isArray(roles) && roles.includes(valid.role))
+                            || typeof roles === 'object' && method in roles && roles[method].includes(valid.role)) ?
+                            next() : next(new UserForbidden);
+                    } else {
+                        return next();
+                    }
+                } catch (err) {
+                    if (err.message === 'jwt expired') {
+                        if (req.session != null) {
+                            req.session.token = null;
+                        }
+                        return next(new ExpiredToken());
+                    } else {
+                        return next(new InvalidToken());
+                    }
+                }
+            }
+        }
     }
 
     _loadParentView(view) {
@@ -120,7 +156,8 @@ class RouteManager {
 
     _loadRouteMethods(router, view) {
         const path = view['url'];
-        Object.entries(view['methods']).forEach(([$key, $value]) => router[$key](path, $value));
+        const access = this.getAuthMiddleware(view);
+        Object.entries(view['methods']).forEach(([$key, $value]) => router[$key](path, access, $value));
     }
 }
 
