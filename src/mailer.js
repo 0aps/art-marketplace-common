@@ -1,31 +1,22 @@
-import nodemailer from 'nodemailer';
+import SendGridMailer from '@sendgrid/mail';
 
 class NodeMailer {
     constructor(mailer, options = {}) {
-        this.mailer = nodemailer ?? nodemailer;
-        this.transporter = this.createTransporter(options);
-    }
-
-    createTransporter(options) {
-        options = options || {
-            service: 'Sendgrid',
-            auth: {
-                user: process.env.SENDGRID_USERNAME,
-                pass: process.env.SENDGRID_PASSWORD
-            }
-        }
-        return this.mailer.createTransport(options);
+        this.mailer = mailer ?? SendGridMailer;
     }
 
     send({email, subject, text}) {
-        var mailOptions = {
-            from: 'no-reply@artwork.com',
-            to: email,
-            subject: subject,
-            text: text
-        };
+        if (process.env.NODE_ENV !== 'test') {
+            this.mailer.setApiKey(process.env.SENDGRID_API_KEY);
+            let mailOptions = {
+                from: 'no-reply@artwork.com',
+                to: email,
+                subject: subject,
+                text: text
+            };
 
-        return transporter.sendMail(mailOptions);
+            return this.mailer.send(mailOptions);
+        }
     }
 }
 
