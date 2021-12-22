@@ -108,6 +108,7 @@ class RouteManager {
                 }
                 try {
                     const valid = await Auth.verify(token);
+                    this.server.locals.user = valid;
                     if (roles) {
                         return ((Array.isArray(roles) && roles.includes(valid.role))
                             || typeof roles === 'object' && method in roles && roles[method].includes(valid.role)) ?
