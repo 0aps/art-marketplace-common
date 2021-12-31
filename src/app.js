@@ -2,6 +2,7 @@ import express, {Router} from 'express';
 import morgan from 'morgan';
 import mongoose from 'mongoose';
 import bodyParser from 'body-parser';
+import fileUpload from 'express-fileupload';
 import {StatusCodes} from 'http-status-codes';
 import {Auth} from './authorization.js';
 import {InvalidToken, ExpiredToken, UserForbidden} from './exceptions.js';
@@ -73,6 +74,7 @@ class RouteManager {
         this.server.use(morgan('combined'));
         this.server.use(bodyParser.urlencoded({extended: false}));
         this.server.use(bodyParser.json());
+        this.server.use(fileUpload());
 
         views.forEach((view) => {
             if ('url' in view) {
@@ -132,7 +134,7 @@ class RouteManager {
 
     _loadParentView(view) {
         const self = this;
-        const router = new Router();
+        const router = new Router({ mergeParams: true });
         if ('methods' in view) {
             this._loadRouteMethods(router, {...view, url: '/'});
         }
@@ -145,7 +147,7 @@ class RouteManager {
 
                 if ('children' in value) {
                     Object.entries(value['children']).forEach(([$key, $value]) => {
-                        const path = `${value['url']}/${$key}`
+                        const path = `${value['url']}${$value['url']}`;
                         router.use(path, self._loadParentView($value));
                     });
                 }
