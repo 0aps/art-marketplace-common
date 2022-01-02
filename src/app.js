@@ -3,23 +3,26 @@ import morgan from 'morgan';
 import mongoose from 'mongoose';
 import bodyParser from 'body-parser';
 import fileUpload from 'express-fileupload';
+import {createClient} from 'redis';
 import {StatusCodes} from 'http-status-codes';
 import {Auth} from './authorization.js';
 import {InvalidToken, ExpiredToken, UserForbidden} from './exceptions.js';
 
 class App {
-    constructor({server, env, logger, router, storage}) {
+    constructor({server, env, logger, router, storage, redis}) {
         this.server = server;
         this.env = env;
         this.logger = logger;
         this.router = router;
         this.storage = storage;
+        this.redis = redis;
     }
 
     static create(params) {
+        const env = process.env;
         const server = params.express ?? express();
         const source = params.mongoose ?? mongoose;
-        const env = process.env;
+        const redis = params.redis ?? createClient(env.REDIS_URI);
         return new App({
             server: server,
             env: env,
@@ -27,6 +30,9 @@ class App {
             router: new RouteManager(server),
             storage: new StorageManager({
                 source, env
+            }),
+            redis: new RedisManager({
+                redis, env
             })
         });
     }
@@ -35,6 +41,7 @@ class App {
         try {
             await this._loadDependencies(params);
             await this._startServer();
+            await this._startSubscriptions(params);
         } catch (e) {
             this.logger.error(e);
         }
@@ -45,6 +52,7 @@ class App {
             await this.instance.close();
         }
         await this.storage.close();
+        await this.redis.close();
     }
 
     async _startServer() {
@@ -54,9 +62,16 @@ class App {
     }
 
     async _loadDependencies({views}) {
+        this.router.addPublishMiddleware(this.redis.publish.bind(this.redis));
         this.router.load(views);
         await this.storage.start();
         this.logger.info(`Database ${this.env.NAME} started successfully`);
+    }
+
+    async _startSubscriptions({subscriptions}) {
+        await this.redis.start();
+        await this.redis.load(subscriptions);
+        this.logger.info(`Redis ${this.env.NAME} started successfully`);
     }
 }
 
@@ -132,9 +147,16 @@ class RouteManager {
         }
     }
 
+    addPublishMiddleware(publish) {
+        this.server.use((_, res, next) => {
+            res.publish = publish;
+            next();
+        });
+    }
+
     _loadParentView(view) {
         const self = this;
-        const router = new Router({ mergeParams: true });
+        const router = new Router({mergeParams: true});
         if ('methods' in view) {
             this._loadRouteMethods(router, {...view, url: '/'});
         }
@@ -176,6 +198,58 @@ class StorageManager {
 
     close() {
         return this.source.connection.close();
+    }
+}
+
+class RedisManager {
+    constructor({env, redis}) {
+        this.env = env;
+        this.redis = redis;
+        this.subscriptions = [];
+        this.isTest = env.NODE_ENV === 'test';
+    }
+
+    publish(channel, data) {
+        if(this.isTest) return;
+        return this.redis.publish(`${this.env.NAME}/${channel}`, Buffer.from(JSON.stringify(data)));
+    }
+
+    async load(subscriptions = []) {
+        if(this.isTest) return;
+        const self = this;
+        for (let i = 0; i < subscriptions.length; ++i) {
+            const subscription = subscriptions[i];
+            if (subscription.channels) {
+                let serviceChannel = subscription.service;
+                for (let j = 0; j < subscription.channels.length; ++j) {
+                    const channel = subscription.channels[j];
+                    const subscriber = self.redis.duplicate();
+                    await subscriber.connect();
+                    subscriber.subscribe(`${serviceChannel}/${channel.name}`, async (message) => {
+                        if (message) {
+                            let data;
+                            try {
+                                data = JSON.parse(message.toString());
+                            } catch (e) {
+                                data = message;
+                            }
+                            await channel.on(data);
+                        }
+                    }, true);
+                    self.subscriptions.push(subscriber);
+                }
+            }
+        }
+    }
+
+    start() {
+        if(this.isTest) return;
+        return this.redis.connect();
+    }
+
+    close() {
+        if(this.isTest) return;
+        return this.redis.disconnect();
     }
 }
 
