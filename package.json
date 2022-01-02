@@ -1,6 +1,6 @@
 {
   "name": "art-marketplace-common",
-  "version": "1.0.8",
+  "version": "1.0.9",
   "description": "Common modules for the art marketplace project",
   "main": "src/index.js",
   "type": "module",

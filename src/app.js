@@ -22,7 +22,7 @@ class App {
         const env = process.env;
         const server = params.express ?? express();
         const source = params.mongoose ?? mongoose;
-        const redis = params.redis ?? createClient(env.REDIS_URI);
+        const redis = params.redis ?? createClient({url: env.REDIS_URI});
         return new App({
             server: server,
             env: env,
