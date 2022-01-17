@@ -1,6 +1,6 @@
 {
   "name": "art-marketplace-common",
-  "version": "1.0.9",
+  "version": "1.0.10",
   "description": "Common modules for the art marketplace project",
   "main": "src/index.js",
   "type": "module",
@@ -30,6 +30,8 @@
     "jsonwebtoken": "^8.5.1",
     "mongoose": "^6.0.15",
     "morgan": "^1.10.0",
-    "redis": "^4.0.1"
+    "redis": "^4.0.1",
+    "swagger-jsdoc": "^6.1.0",
+    "swagger-ui-express": "^4.3.0"
   }
 }

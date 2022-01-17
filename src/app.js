@@ -3,6 +3,8 @@ import morgan from 'morgan';
 import mongoose from 'mongoose';
 import bodyParser from 'body-parser';
 import fileUpload from 'express-fileupload';
+import swaggerUi from 'swagger-ui-express';
+import swaggerJsdoc from 'swagger-jsdoc';
 import {createClient} from 'redis';
 import {StatusCodes} from 'http-status-codes';
 import {Auth} from './authorization.js';
@@ -23,7 +25,7 @@ class App {
         const server = params.express ?? express();
         const source = params.mongoose ?? mongoose;
         const redis = params.redis ?? createClient({url: env.REDIS_URI});
-        return new App({
+        return new this({
             server: server,
             env: env,
             logger: console,
@@ -55,6 +57,25 @@ class App {
         await this.redis.close();
     }
 
+    getAppName() {
+        const name = this.env.NAME ?? '';
+        return name.charAt(0).toUpperCase() + name.slice(1);
+    }
+
+    getSwaggerOptions() {
+        return {
+            name: this.env.NAME,
+            definition: {
+                info: {
+                    title: 'Artwork default api title',
+                    description:
+                        'Artwork default api description',
+                },
+            },
+            apis: ['./src/views.js']
+        };
+    }
+
     async _startServer() {
         this.instance = await this.server.listen(this.env.PORT);
         this.instance.setTimeout(parseInt(this.env.SERVER_TIMEOUT));
@@ -62,6 +83,7 @@ class App {
     }
 
     async _loadDependencies({views}) {
+        this.router.addSwaggerMiddleware(this.getSwaggerOptions());
         this.router.addPublishMiddleware(this.redis.publish.bind(this.redis));
         this.router.load(views);
         await this.storage.start();
@@ -154,6 +176,12 @@ class RouteManager {
         });
     }
 
+    addSwaggerMiddleware({name, ...options}) {
+        this.server.use(`${this.url}/${name}/help`,
+            swaggerUi.serve, swaggerUi.setup(swaggerJsdoc(options), {explorer: true})
+        );
+    }
+
     _loadParentView(view) {
         const self = this;
         const router = new Router({mergeParams: true});
@@ -210,12 +238,12 @@ class RedisManager {
     }
 
     publish(channel, data) {
-        if(this.isTest) return;
+        if (this.isTest) return;
         return this.redis.publish(`${this.env.NAME}/${channel}`, Buffer.from(JSON.stringify(data)));
     }
 
     async load(subscriptions = []) {
-        if(this.isTest) return;
+        if (this.isTest) return;
         const self = this;
         for (let i = 0; i < subscriptions.length; ++i) {
             const subscription = subscriptions[i];
@@ -243,12 +271,12 @@ class RedisManager {
     }
 
     start() {
-        if(this.isTest) return;
+        if (this.isTest) return;
         return this.redis.connect();
     }
 
     close() {
-        if(this.isTest) return;
+        if (this.isTest) return;
         return this.redis.disconnect();
     }
 }
